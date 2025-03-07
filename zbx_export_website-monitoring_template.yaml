@@ -1,0 +1,91 @@
+zabbix_export:
+  version: '7.2'
+  template_groups:
+    - uuid: 6b9437d990ae4dbfb1c0270d3ae56674
+      name: 'Custom templates'
+  templates:
+    - uuid: 9b4d7b0b603744bf860ef10169fe6299
+      template: 'Website monitoring'
+      name: 'Website monitoring'
+      description: 'Simple website monitoring with Web Scenarios'
+      groups:
+        - name: 'Custom templates'
+      items:
+        - uuid: 30c2efcaaa624d1cbb09552c833070f9
+          name: 'Website availability'
+          type: DEPENDENT
+          key: website.availability
+          description: |
+            Website availability in 0 or 1 for Dashboard widgets display.
+            
+            Value mapping:
+            0 = UP
+            1 = DOWN
+          valuemap:
+            name: 'Website availability'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return value;'
+          master_item:
+            key: 'web.test.fail[Availability of {$WEBSITE}]'
+        - uuid: 09fececa3f07400a9b65f3fe551d7fca
+          name: 'Website Uptime in % (last 24h)'
+          type: CALCULATED
+          key: website.uptime.24h
+          delay: 5m
+          value_type: FLOAT
+          units: '%'
+          params: |
+            ( count(//web.test.fail[Availability of {$WEBSITE}],86400,"eq","0")
+            / count(//web.test.fail[Availability of {$WEBSITE}],86400) ) * 100
+        - uuid: 73e67f9fafff4c9fbd67cb4fbc142cf9
+          name: 'Website Uptime in % (last 30d)'
+          type: CALCULATED
+          key: website.uptime.30d
+          delay: 1h
+          value_type: FLOAT
+          units: '%'
+          params: |
+            ( count(//web.test.fail[Availability of {$WEBSITE}],2592000,"eq","0")  
+            / count(//web.test.fail[Availability of {$WEBSITE}],2592000) ) * 100
+      httptests:
+        - uuid: 3be795dcca624acb85669b7e4c32d2e1
+          name: 'Availability of {$WEBSITE}'
+          attempts: '2'
+          steps:
+            - name: 'Website availability'
+              url: '{$WEBSITE}'
+              status_codes: '200'
+      macros:
+        - macro: '{$WEBSITE}'
+          value: 'https://domain.com'
+          description: 'URL of the website to monitor'
+      valuemaps:
+        - uuid: c06e8f2873444547830489312f908252
+          name: 'Website availability'
+          mappings:
+            - value: '0'
+              newvalue: UP
+            - value: '1'
+              newvalue: DOWN
+  triggers:
+    - uuid: 2614058949164d71addc0bfee2182b8d
+      expression: 'last(/Website monitoring/web.test.fail[Availability of {$WEBSITE}],#2)=1'
+      name: '{$WEBSITE} is unavailable'
+      priority: AVERAGE
+      description: '{$WEBSITE} is not available.'
+    - uuid: 7b8c7dedc74a4b8ea5f3328585469e2e
+      expression: 'last(/Website monitoring/web.test.rspcode[Availability of {$WEBSITE},Website availability],#2)<>200'
+      name: '{$WEBSITE} response code is not 200'
+      priority: AVERAGE
+      description: '{$WEBSITE} : Response code is not equal to 200.'
+  graphs:
+    - uuid: 0b50edb86cc34c2dad2c50003bdd2ccb
+      name: 'Response time'
+      graph_items:
+        - color: 0080FF
+          calc_fnc: ALL
+          item:
+            host: 'Website monitoring'
+            key: 'web.test.time[Availability of {$WEBSITE},Website availability,resp]'
